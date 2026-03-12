@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ISUZU Fuel Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            user-select: none;
+            touch-action: none;
+            font-family: 'Kanit', sans-serif;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        /* UI Overlay setup */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .pointer-events-auto { pointer-events: auto; }
+        
+        /* Toast Notification - Changed to Glowing Text ONLY (No Box) */
+        #toast {
+            visibility: hidden;
+            position: fixed;
+            z-index: 50;
+            left: 50%;
+            top: 15%; 
+            transform: translateX(-50%);
+            font-size: 26px;
+            font-weight: 900;
+            color: #FFD700; /* Gold/Yellow text */
+            text-shadow: 0px 4px 10px rgba(0,0,0,0.9), 0px 0px 20px rgba(255,215,0,0.8), 0px 0px 30px rgba(255,215,0,0.6);
+            text-align: center;
+            white-space: nowrap;
+            pointer-events: none; /* Let touches pass through */
+        }
+        #toast.show {
+            visibility: visible;
+            animation: popin 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), fadeoutFloat 0.8s 1.2s forwards;
+        }
+        @keyframes popin {
+            from {transform: translateX(-50%) scale(0.5); opacity: 0;} 
+            to {transform: translateX(-50%) scale(1); opacity: 1;}
+        }
+        @keyframes fadeoutFloat {
+            from {opacity: 1; transform: translateX(-50%) scale(1) translateY(0);} 
+            to {opacity: 0; transform: translateX(-50%) scale(0.9) translateY(-30px);}
+        }
+
+        /* ISUZU Brand Colors */
+        .bg-isuzu-red { background-color: #E3000F; }
+        .text-isuzu-red { color: #E3000F; }
+        .border-isuzu-red { border-color: #E3000F; }
+        
+        /* Animations */
+        .level-up-anim { animation: pulse 0.5s infinite alternate; }
+        .point-anim { animation: pointBounce 0.3s ease-out; }
+        @keyframes pulse {
+            from { text-shadow: 0 0 10px #FFD700; transform: scale(1); }
+            to { text-shadow: 0 0 20px #FFD700, 0 0 30px #FFD700; transform: scale(1.1); }
+        }
+        @keyframes pointBounce {
+            0% { transform: scale(1); color: #FFF; }
+            50% { transform: scale(1.3); color: #10B981; }
+            100% { transform: scale(1); color: #FFF; }
+        }
+        
+        /* Hell Overlay */
+        #hell-overlay {
+            position: absolute;
+            inset: 0;
+            box-shadow: inset 0 0 100px 20px rgba(255, 0, 0, 0.5);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
+        }
+        #hell-overlay.active { opacity: 1; }
+        
+        /* Minimal UI text shadow */
+        .text-outline { text-shadow: 0px 2px 4px rgba(0,0,0,0.8), 0px 0px 2px rgba(0,0,0,1); }
+        
+        /* Custom Scrollbar for Tutorial Modal */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body>
+
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- Hell Level Visual Overlay -->
+    <div id="hell-overlay"></div>
+
+    <!-- UI Layer -->
+    <div id="ui-layer">
+        
+        <!-- Main Menu -->
+        <div id="main-menu" class="pointer-events-auto absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px] transition-opacity duration-300">
+            <!-- Updated Title -->
+            <h1 class="font-black mb-4 text-center drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] italic tracking-wider uppercase leading-none">
+                <span class="text-[#E3000F] text-[3.5rem] sm:text-6xl">ISUZU</span><br>
+                <span class="text-[#10B981] text-5xl sm:text-5xl leading-tight">FUEL</span><br>
+                <span class="text-white text-3xl sm:text-4xl">CHALLENGE</span>
+            </h1>
+            
+            <p class="text-white drop-shadow-md mb-6 text-center max-w-xs text-lg font-semibold">
+                พิสูจน์ความทนทานและประหยัดน้ำมัน<br>ไปกับ <span class="text-[#E3000F] font-black text-xl">ISUZU</span>
+            </p>
+
+            <!-- Name Input Field -->
+            <div class="w-full max-w-[280px] mb-6">
+                <input type="text" id="player-name-input" maxlength="20" placeholder="กรอกชื่อของคุณ (สูงสุด 20 ตัวอักษร)" 
+                       class="w-full px-4 py-3 rounded-xl border-2 border-transparent focus:border-[#E3000F] focus:outline-none text-center font-bold text-gray-900 bg-white/95 shadow-lg transition-colors">
+            </div>
+            
+            <!-- Buttons -->
+            <div class="flex flex-col gap-3 w-full max-w-[280px]">
+                <button onclick="checkAndStartGame()" class="w-full bg-[#E3000F] text-white py-4 rounded-full font-bold text-2xl uppercase tracking-widest shadow-[0_0_20px_rgba(227,0,15,0.7)] active:scale-95 transition-transform border-2 border-white/30">
+                    Start Game
+                </button>
+                
+                <button onclick="showTutorial()" class="w-full bg-gray-900/90 text-white py-3 rounded-full font-bold text-lg uppercase tracking-wider shadow-lg active:scale-95 transition-transform border border-gray-500 backdrop-blur-sm">
+                    วิธีเล่น / กติกา
+                </button>
+            </div>
+            
+            <p class="text-gray-200 drop-shadow-md text-sm mt-6 font-semibold">🔊 กรุณาเปิดเสียงเพื่อความสนุกยิ่งขึ้น</p>
+        </div>
+
+        <!-- Sleek / Unobtrusive HUD -->
+        <div id="hud" class="hidden absolute top-0 left-0 w-full p-2 flex flex-col gap-1 pointer-events-none z-10">
+            <!-- Fuel Bar (Top, thin) -->
+            <div class="w-full flex justify-center items-center mt-1 px-4 gap-2 opacity-90">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="drop-shadow-md"><path d="M3 22v-8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8"/><path d="M6 12v-3a6 6 0 1 1 12 0v3"/></svg>
+                <div class="flex-grow max-w-[200px] bg-black/60 h-2 rounded-full overflow-hidden border border-gray-600/50">
+                    <div id="fuel-bar" class="bg-gradient-to-r from-green-500 to-green-300 h-full transition-all duration-200" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="flex justify-between px-4 mt-2">
+                <!-- Left: Distance & Points -->
+                <div class="flex flex-col text-left">
+                    <p class="text-white text-xl font-black leading-none text-outline tracking-wider"><span id="distance-display">0</span> <span class="text-xs text-gray-200">KM</span></p>
+                    <p class="text-green-400 text-lg font-black leading-none mt-1 text-outline transition-transform" id="points-display">0 <span class="text-[10px] text-green-200">PTS</span></p>
+                </div>
+                
+                <!-- Right: Level -->
+                <div class="flex flex-col text-right">
+                    <p id="level-text" class="text-yellow-400 text-2xl font-black leading-none text-outline">LV <span id="level-display">1</span></p>
+                </div>
+            </div>
+            
+            <!-- Invincible Timer -->
+            <div id="invincible-hud" class="hidden mt-4 self-center bg-gradient-to-r from-yellow-500/80 to-yellow-300/80 rounded-full px-4 py-1 shadow-[0_0_10px_rgba(234,179,8,0.5)] border border-white text-center backdrop-blur-sm">
+                <p class="text-black font-black text-xl drop-shadow-sm" id="timer-display">5.0s</p>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over" class="hidden pointer-events-auto absolute inset-0 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md transition-opacity duration-300 p-6 z-40">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-3 bg-[#E3000F]"></div>
+                <h2 class="text-4xl font-extrabold text-gray-900 mb-1 mt-2">GAME OVER</h2>
+                <p id="game-over-reason" class="text-gray-500 font-semibold mb-4 bg-gray-100 py-1 rounded-full text-sm">ชนสิ่งกีดขวาง!</p>
+                
+                <div class="grid grid-cols-3 gap-2 mb-6">
+                    <div class="bg-gray-50 rounded-2xl p-2 border border-gray-200 flex flex-col justify-center">
+                        <p class="text-gray-500 text-[10px] font-bold uppercase">ระยะทาง</p>
+                        <p class="text-xl font-black text-[#E3000F] leading-none mt-1"><span id="final-distance">0</span><br><span class="text-xs text-gray-800">KM</span></p>
+                    </div>
+                    <div class="bg-gray-50 rounded-2xl p-2 border border-gray-200 flex flex-col justify-center">
+                        <p class="text-gray-500 text-[10px] font-bold uppercase">คะแนน</p>
+                        <p class="text-2xl font-black text-green-500 leading-none mt-1" id="final-points">0</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-2xl p-2 border border-gray-200 flex flex-col justify-center">
+                        <p class="text-gray-500 text-[10px] font-bold uppercase">เลเวล</p>
+                        <p class="text-xl font-black text-yellow-500 leading-none mt-1">LV <span id="final-level">1</span></p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <button onclick="saveScoreImage()" class="flex items-center justify-center gap-2 w-full bg-gray-900 text-white px-4 py-3 rounded-xl font-semibold hover:bg-black active:scale-95 transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                        Save Score Image
+                    </button>
+                    <button onclick="copyReviewAndShare()" class="flex items-center justify-center gap-2 w-full bg-blue-600 text-white px-4 py-3 rounded-xl font-semibold hover:bg-blue-700 active:scale-95 transition-all shadow-[0_4px_14px_0_rgba(37,99,235,0.39)]">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                        Copy Review & Share
+                    </button>
+                    <button onclick="requestRestart()" class="flex items-center justify-center gap-2 w-full bg-[#E3000F] text-white px-4 py-3 rounded-xl font-bold uppercase mt-2 active:scale-95 transition-all border-2 border-transparent">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                        Play Again
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirm Restart Modal -->
+        <div id="confirm-modal" class="hidden pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div class="bg-white rounded-2xl p-6 w-full max-w-[320px] text-center shadow-2xl">
+                <h3 class="text-2xl font-bold text-gray-900 mb-2">เริ่มเกมใหม่?</h3>
+                <p class="text-gray-600 mb-6 font-medium">คุณต้องการเริ่มเล่นรอบใหม่<br>ใช่หรือไม่?</p>
+                <div class="flex gap-3">
+                    <button onclick="hideConfirmModal()" class="flex-1 bg-gray-200 text-gray-800 py-3 rounded-xl font-bold hover:bg-gray-300 transition-colors">ยกเลิก</button>
+                    <button onclick="restartGame()" class="flex-1 bg-[#E3000F] text-white py-3 rounded-xl font-bold hover:bg-red-700 transition-colors">ตกลง</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tutorial Modal -->
+        <div id="tutorial-modal" class="hidden pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+            <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl relative flex flex-col max-h-[90vh]">
+                <div class="absolute top-0 left-0 w-full h-3 bg-gray-800"></div>
+                <h2 class="text-3xl font-extrabold text-gray-900 mb-4 mt-2 text-center">วิธีเล่น และ กติกา</h2>
+                
+                <div class="overflow-y-auto flex-1 pr-2 space-y-4 text-left custom-scrollbar">
+                    
+                    <!-- Controls -->
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                        <h3 class="font-bold text-[#E3000F] text-lg mb-1 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4"/><path d="M8 10v4"/><circle cx="15" cy="13" r="1"/><circle cx="18" cy="11" r="1"/></svg>
+                            การควบคุม
+                        </h3>
+                        <p class="text-sm text-gray-700">แตะหน้าจอฝั่ง <b class="text-black">ซ้าย</b> หรือ <b class="text-black">ขวา</b> เพื่อให้รถเปลี่ยนเลนหลบสิ่งกีดขวาง</p>
+                    </div>
+                    
+                    <!-- Items -->
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                        <h3 class="font-bold text-[#E3000F] text-lg mb-2 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                            ไอเทมและสิ่งกีดขวาง
+                        </h3>
+                        <ul class="text-sm text-gray-700 space-y-3">
+                            <li class="flex items-start gap-3">
+                                <span class="text-2xl leading-none">🚧</span> 
+                                <div><b class="text-red-600">กรวยจราจร:</b> ห้ามชนเด็ดขาด! ชนปุ๊บเกมจบปั๊บ</div>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <span class="text-2xl leading-none">💧</span> 
+                                <div><b class="text-green-600">หยดน้ำมัน:</b> เติมน้ำมันให้รถวิ่งต่อได้ + รับฟรี 10 คะแนน</div>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <span class="text-2xl leading-none">🪙</span> 
+                                <div><b class="text-yellow-500">เหรียญทอง:</b> ไอเทมพิเศษเพื่อสะสมคะแนน รับทันที 50 คะแนน</div>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <span class="text-2xl leading-none">🛡️</span> 
+                                <div><b class="text-blue-600">โลโก้ <span class="text-[#E3000F]">ISUZU</span>:</b> ได้รับพลังอมตะ 5 วินาที ชนกรวยได้ไม่ตาย และได้น้ำมันเต็มถัง!</div>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- UI Guide -->
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                        <h3 class="font-bold text-[#E3000F] text-lg mb-2 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                            หน้าจอการเล่น (UI)
+                        </h3>
+                        <ul class="text-sm text-gray-700 space-y-2">
+                            <li class="flex items-center gap-2"><div class="w-3 h-3 bg-green-500 rounded-full"></div> <b>Fuel Level:</b> หลอดน้ำมันด้านบนสุด ต้องเก็บหยดน้ำมันอย่าให้หลอดหมด</li>
+                            <li class="flex items-center gap-2"><div class="w-3 h-3 bg-white border border-gray-400 rounded-full"></div> <b>KM (ระยะทาง):</b> ทุกๆ 100 KM รถจะเปลี่ยน Level และวิ่งเร็วขึ้น ทิวทัศน์จะเปลี่ยนไป</li>
+                            <li class="flex items-center gap-2"><div class="w-3 h-3 bg-green-400 rounded-full"></div> <b>PTS (คะแนน):</b> คะแนนสะสมจากการเก็บไอเทมต่างๆ</li>
+                            <li class="flex items-center gap-2"><div class="w-3 h-3 bg-yellow-400 rounded-full"></div> <b>LV (เลเวล):</b> ระดับความยากปัจจุบัน (สูงสุด LV 10 คือ วิวนรก)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <button onclick="hideTutorial()" class="w-full bg-gray-900 text-white py-3 rounded-xl font-bold mt-4 hover:bg-black active:scale-95 transition-colors">
+                    เข้าใจแล้ว ปิดหน้าต่าง
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Toast Component -->
+    <div id="toast">LEVEL UP!</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Player Name & State
+        let playerName = "Unknown Driver";
+        let gameState = 'MENU'; // 'MENU', 'PLAYING', 'GAMEOVER'
+
+        // --- Audio Synthesizer (Web Audio API) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let engineOsc, engineGain, beatOsc, beatGain;
+        let soundEnabled = true;
+        let nextBeatTime = 0;
+        let beatInterval = 0.5;
+
+        function initAudio() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            if(!engineOsc) {
+                engineOsc = audioCtx.createOscillator();
+                engineGain = audioCtx.createGain();
+                engineOsc.type = 'sawtooth';
+                engineOsc.frequency.value = 50; 
+                engineGain.gain.value = 0.05; 
+                
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 200;
+
+                engineOsc.connect(filter);
+                filter.connect(engineGain);
+                engineGain.connect(audioCtx.destination);
+                engineOsc.start();
+            }
+        }
+
+        function updateEngineSound(speed) {
+            if (engineOsc && soundEnabled) {
+                engineOsc.frequency.setTargetAtTime(50 + (speed * 3), audioCtx.currentTime, 0.1);
+            }
+        }
+
+        function stopEngineSound() {
+            if (engineGain) engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+        }
+
+        function playTone(freq, type, duration, vol) {
+            if (!soundEnabled) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playFuelSound() {
+            playTone(880, 'sine', 0.1, 0.3); 
+            setTimeout(() => playTone(1108, 'sine', 0.2, 0.3), 100); 
+        }
+
+        function playCoinSound() {
+            if (!soundEnabled) return;
+            playTone(987.77, 'sine', 0.1, 0.2); // B5
+            setTimeout(() => playTone(1318.51, 'sine', 0.2, 0.2), 100); // E6
+        }
+
+        function playPowerupSound() {
+            if (!soundEnabled) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(1200, audioCtx.currentTime + 0.5); 
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+
+        function playCrashSound() {
+            if (!soundEnabled) return;
+            const bufferSize = audioCtx.sampleRate * 0.5; 
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5);
+            
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+            noise.start();
+        }
+
+        function playLevelUpSound() {
+            playTone(440, 'square', 0.1, 0.2); 
+            setTimeout(() => playTone(554, 'square', 0.1, 0.2), 150); 
+            setTimeout(() => playTone(659, 'square', 0.3, 0.2), 300); 
+        }
+
+        function scheduler() {
+            if(gameState !== 'PLAYING' || !soundEnabled) return;
+            while (nextBeatTime < audioCtx.currentTime + 0.1) {
+                const freq = level >= 10 ? 100 : 150;
+                playTone(freq, 'square', 0.05, 0.1); 
+                if(Math.random() > 0.5) setTimeout(() => playTone(8000, 'square', 0.02, 0.05), 100); 
+                nextBeatTime += beatInterval;
+            }
+        }
+        // ------------------------------------------
+
+        // UI Elements
+        const mainMenu = document.getElementById('main-menu');
+        const gameOverScreen = document.getElementById('game-over');
+        const hud = document.getElementById('hud');
+        
+        const distanceDisplay = document.getElementById('distance-display');
+        const pointsDisplay = document.getElementById('points-display');
+        const levelDisplay = document.getElementById('level-display');
+        const levelText = document.getElementById('level-text');
+        
+        const finalDistanceDisplay = document.getElementById('final-distance');
+        const finalPointsDisplay = document.getElementById('final-points');
+        const finalLevelDisplay = document.getElementById('final-level');
+        const gameOverReason = document.getElementById('game-over-reason');
+        const hellOverlay = document.getElementById('hell-overlay');
+        const confirmModal = document.getElementById('confirm-modal');
+        const tutorialModal = document.getElementById('tutorial-modal');
+        
+        const fuelBar = document.getElementById('fuel-bar');
+        const invincibleHud = document.getElementById('invincible-hud');
+        const timerDisplay = document.getElementById('timer-display');
+        const toast = document.getElementById('toast');
+
+        // Assets
+        const logoImg = new Image();
+        logoImg.src = '1000631943.jpg';
+
+        // Background Particles
+        const bgParticles = Array.from({length: 80}, () => ({
+            x: Math.random(),
+            y: Math.random(),
+            size: Math.random() * 3 + 1,
+            speed: Math.random() * 1.5 + 0.5
+        }));
+
+        // Level Themes Configuration (Added bright Level 1)
+        const levelThemes = {
+            1: { road: '#404040', lines: '#ffffff', shoulder: '#5cb85c', effect: 'none' },        // Bright City/Grass
+            2: { road: '#3b3b3b', lines: '#eeeeee', shoulder: '#388E3C', effect: 'none' },        // Darker Grass
+            3: { road: '#4e342e', lines: '#ffcc80', shoulder: '#8D6E63', effect: 'dust' },        // Dirt Road
+            4: { road: '#3e2723', lines: '#ffb74d', shoulder: '#A1887F', effect: 'dust' },        // Desert
+            5: { road: '#1a237e', lines: '#00e5ff', shoulder: '#000000', effect: 'cyber' },       // Cyberpunk Blue
+            6: { road: '#121212', lines: '#ff00ff', shoulder: '#1A001A', effect: 'cyber' },       // Cyberpunk Purple
+            7: { road: '#78909c', lines: '#ffffff', shoulder: '#ECEFF1', effect: 'snow' },        // Light Snow
+            8: { road: '#546e7a', lines: '#e0f7fa', shoulder: '#CFD8DC', effect: 'snow' },        // Heavy Snow/Ice
+            9: { road: '#212121', lines: '#ff5722', shoulder: '#3E2723', effect: 'volcano' },     // Volcano Approach
+            10: { road: '#2b0000', lines: '#ff1744', shoulder: '#ff3d00', effect: 'hell' }        // Hell
+        };
+
+        // Game Constants
+        const LANES = 3;
+        const LOGO_SPAWN_INTERVAL = 30000; 
+        const INVINCIBLE_DURATION = 5000; 
+        const MAX_LEVEL = 10;
+        const MAX_FUEL = 100;
+
+        // Game State Variables
+        let distance = 0;
+        let points = 0;
+        let level = 1;
+        let baseSpeed = 5;
+        let speed = 5;
+        let currentFuel = MAX_FUEL;
+        let fuelDrainRate = 5; 
+        
+        let frameCount = 0;
+        let lastTime = 0;
+        
+        let timeSinceLastLogo = 0;
+        let isInvincible = false;
+        let invincibleTimer = 0;
+
+        // Entities
+        let player = { lane: 1, width: 0, height: 0, y: 0, targetX: 0, currentX: 0, targetRotation: 0, currentRotation: 0 };
+        let obstacles = [];
+        let collectibles = [];
+        let logos = [];
+        let coins = []; 
+
+        // Dimensions
+        let laneWidth = 0;
+        let shoulderWidth = 0;
+
+        // Initialize Canvas Size
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // Widened shoulder for better scenery placement
+            shoulderWidth = canvas.width * 0.12; 
+            const playableWidth = canvas.width - (shoulderWidth * 2);
+            laneWidth = playableWidth / LANES;
+            
+            player.width = laneWidth * 0.55;
+            player.height = player.width * 2.2;
+            player.y = canvas.height - player.height - 40;
+            
+            player.targetX = getLaneCenterX(player.lane);
+            if(gameState !== 'PLAYING' && player.currentX === 0) player.currentX = player.targetX;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function getLaneCenterX(laneIndex) { 
+            return shoulderWidth + (laneIndex * laneWidth) + (laneWidth / 2); 
+        }
+
+        // Generic Toast for non-level up messages
+        function showToastMsg(message) {
+            toast.innerText = message;
+            toast.className = "show";
+            setTimeout(function(){ 
+                toast.className = toast.className.replace("show", ""); 
+            }, 2000); // reduced timeout slightly to match new fast fade
+        }
+
+        function showLevelUpToast(message) {
+            // Using innerHTML to allow styling inside the toast if needed
+            toast.innerHTML = message;
+            toast.className = "show";
+            levelText.classList.add("level-up-anim");
+            setTimeout(function(){ 
+                toast.className = toast.className.replace("show", ""); 
+                levelText.classList.remove("level-up-anim");
+            }, 2000);
+        }
+
+        function animatePoints() {
+            pointsDisplay.classList.remove('point-anim');
+            void pointsDisplay.offsetWidth; 
+            pointsDisplay.classList.add('point-anim');
+        }
+
+        // --- Drawing Functions ---
+        
+        function drawRoad() {
+            const theme = levelThemes[level] || levelThemes[MAX_LEVEL];
+
+            ctx.fillStyle = theme.road;
+            ctx.fillRect(shoulderWidth, 0, canvas.width - (shoulderWidth*2), canvas.height);
+
+            ctx.fillStyle = theme.shoulder;
+            ctx.fillRect(0, 0, shoulderWidth, canvas.height);
+            ctx.fillRect(canvas.width - shoulderWidth, 0, shoulderWidth, canvas.height);
+
+            if (theme.effect === 'snow') {
+                ctx.fillStyle = '#ffffff';
+                bgParticles.forEach(p => {
+                    let px = shoulderWidth + (p.x * (canvas.width - shoulderWidth*2));
+                    let py = (p.y * canvas.height + frameCount * p.speed * speed * 0.3) % canvas.height;
+                    ctx.beginPath(); ctx.arc(px, py, p.size, 0, Math.PI*2); ctx.fill();
+                });
+            } else if (theme.effect === 'hell' || theme.effect === 'volcano') {
+                ctx.fillStyle = '#ff5722';
+                bgParticles.forEach(p => {
+                    let px = shoulderWidth + (p.x * (canvas.width - shoulderWidth*2));
+                    let py = (p.y * canvas.height - frameCount * p.speed * 2) % canvas.height;
+                    if(py < 0) py += canvas.height;
+                    ctx.fillRect(px, py, p.size*1.5, p.size*1.5);
+                });
+            } else if (theme.effect === 'cyber') {
+                ctx.strokeStyle = theme.lines;
+                ctx.globalAlpha = 0.3;
+                ctx.lineWidth = 1.5;
+                bgParticles.slice(0, 15).forEach(p => {
+                    let py = (p.y * canvas.height + frameCount * speed * 1.5) % canvas.height;
+                    ctx.beginPath(); ctx.moveTo(shoulderWidth, py); ctx.lineTo(canvas.width - shoulderWidth, py); ctx.stroke();
+                });
+                ctx.globalAlpha = 1.0;
+            } else if (theme.effect === 'dust') {
+                ctx.fillStyle = 'rgba(215, 204, 200, 0.4)';
+                bgParticles.slice(0, 30).forEach(p => {
+                    let px = shoulderWidth + (p.x * (canvas.width - shoulderWidth*2));
+                    let py = (p.y * canvas.height + frameCount * p.speed * speed * 0.5) % canvas.height;
+                    ctx.beginPath(); ctx.arc(px, py, p.size * 1.5, 0, Math.PI*2); ctx.fill();
+                });
+            } else if (level >= 3 && theme.effect === 'none') {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                for(let i = 0; i < level; i++) {
+                    let lx = shoulderWidth + (Math.random() * (canvas.width - shoulderWidth*2));
+                    let ly = (frameCount * speed * 2 + Math.random() * 100) % canvas.height;
+                    ctx.fillRect(lx, ly, 2, 50);
+                }
+            }
+
+            ctx.strokeStyle = theme.lines;
+            ctx.lineWidth = Math.max(2, canvas.width * 0.01);
+            
+            ctx.beginPath();
+            ctx.moveTo(shoulderWidth, 0); ctx.lineTo(shoulderWidth, canvas.height);
+            ctx.moveTo(canvas.width - shoulderWidth, 0); ctx.lineTo(canvas.width - shoulderWidth, canvas.height);
+            ctx.stroke();
+
+            ctx.setLineDash([canvas.height * 0.05, canvas.height * 0.05]);
+            const lineOffset = (frameCount * speed) % (canvas.height * 0.1);
+            ctx.lineDashOffset = -lineOffset;
+
+            ctx.beginPath();
+            for (let i = 1; i < LANES; i++) {
+                let x = shoulderWidth + (i * laneWidth);
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]); 
+        }
+
+        // Drawing Specific Scenery Objects
+        function drawPineTree(size, isSnow) {
+            // Trunk
+            ctx.fillStyle = '#5D4037';
+            ctx.fillRect(-size*0.1, 0, size*0.2, size*0.6);
+            // Leaves
+            ctx.fillStyle = isSnow ? '#E0F7FA' : '#2E7D32';
+            for(let i=0; i<3; i++) {
+                ctx.beginPath();
+                let ty = -size*0.2 - (i*size*0.3);
+                let tw = size*0.7 - (i*size*0.15);
+                ctx.moveTo(0, ty - size*0.5);
+                ctx.lineTo(-tw, ty + size*0.3);
+                ctx.lineTo(tw, ty + size*0.3);
+                ctx.fill();
+            }
+        }
+        function drawCactus(size) {
+            ctx.fillStyle = '#2E7D32';
+            ctx.beginPath();
+            ctx.roundRect(-size*0.15, -size*0.8, size*0.3, size*0.8, size*0.15);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.roundRect(-size*0.4, -size*0.5, size*0.3, size*0.15, size*0.07);
+            ctx.roundRect(-size*0.4, -size*0.6, size*0.15, size*0.25, size*0.07);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.roundRect(size*0.1, -size*0.3, size*0.3, size*0.15, size*0.07);
+            ctx.roundRect(size*0.25, -size*0.5, size*0.15, size*0.35, size*0.07);
+            ctx.fill();
+        }
+        function drawCyberPole(size) {
+            ctx.fillStyle = '#111';
+            ctx.fillRect(-size*0.05, -size, size*0.1, size);
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = (frameCount % 60 < 30) ? '#00e5ff' : '#ff00ff';
+            ctx.fillStyle = ctx.shadowColor;
+            ctx.fillRect(-size*0.02, -size*0.9, size*0.04, size*0.8);
+            ctx.shadowBlur = 0;
+        }
+        function drawDeadTree(size, isHell) {
+            ctx.strokeStyle = isHell ? '#1a0000' : '#3E2723';
+            ctx.lineWidth = size*0.15;
+            ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(0, size*0.2); ctx.lineTo(0, -size*0.5); ctx.stroke();
+            ctx.lineWidth = size*0.08;
+            ctx.beginPath(); ctx.moveTo(0, -size*0.2); ctx.lineTo(-size*0.3, -size*0.4); ctx.moveTo(0, -size*0.3); ctx.lineTo(size*0.3, -size*0.6); ctx.stroke();
+            if(isHell) {
+                ctx.fillStyle = '#ff3d00';
+                ctx.beginPath(); ctx.arc(-size*0.3, -size*0.4, size*0.05, 0, Math.PI*2); ctx.arc(size*0.3, -size*0.6, size*0.05, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        // Draw Scenery Manager
+        function drawSceneryDecoration(theme, x, y, size) {
+            ctx.save();
+            ctx.translate(x, y);
+            if (theme.effect === 'none' || theme.effect === 'dust') {
+                if(level <= 2) drawPineTree(size, false);
+                else drawCactus(size);
+            } else if (theme.effect === 'cyber') {
+                drawCyberPole(size);
+            } else if (theme.effect === 'snow') {
+                drawPineTree(size, true);
+            } else {
+                drawDeadTree(size, level === 10);
+            }
+            ctx.restore();
+        }
+
+        function drawSceneryPass(currentSpeed) {
+            const spacing = 250; 
+            const offset = (frameCount * currentSpeed) % spacing;
+            const size = shoulderWidth * 0.7; // Scale to fit shoulder
+            const theme = levelThemes[level] || levelThemes[MAX_LEVEL];
+            
+            for (let y = -spacing; y < canvas.height + spacing; y += spacing) {
+                let drawY = y + offset;
+                // Left
+                drawSceneryDecoration(theme, shoulderWidth / 2, drawY, size);
+                // Right (Staggered)
+                drawSceneryDecoration(theme, canvas.width - shoulderWidth / 2, drawY + (spacing/2), size);
+            }
+        }
+
+        function drawCar(x, y, width, height, isGold, rotation = 0) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.beginPath();
+            ctx.roundRect(-width/2 + 5, 5, width, height, 8);
+            ctx.fill();
+
+            const bodyColor = isGold ? '#FFD700' : '#5A5A5A'; 
+            const trimColor = isGold ? '#B8860B' : '#111111'; 
+
+            ctx.fillStyle = trimColor;
+            const flareW = 3;
+            const flareH = height * 0.18;
+            ctx.beginPath(); ctx.roundRect(-width/2 - flareW, height * 0.1, flareW*2, flareH, 2); ctx.fill();
+            ctx.beginPath(); ctx.roundRect(width/2 - flareW, height * 0.1, flareW*2, flareH, 2); ctx.fill();
+            ctx.beginPath(); ctx.roundRect(-width/2 - flareW, height * 0.65, flareW*2, flareH, 2); ctx.fill();
+            ctx.beginPath(); ctx.roundRect(width/2 - flareW, height * 0.65, flareW*2, flareH, 2); ctx.fill();
+
+            ctx.fillStyle = bodyColor;
+            ctx.beginPath(); ctx.roundRect(-width/2, 0, width, height, 6); ctx.fill();
+
+            if (isGold) { ctx.shadowBlur = 25; ctx.shadowColor = '#FFD700'; }
+
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(-width/2 + 4, 0, width - 8, height * 0.08);
+            ctx.fillStyle = '#E3000F';
+            ctx.fillRect(-width/4, 2, width/2, height * 0.02);
+
+            const cabinStartY = height * 0.25;
+            const cabinH = height * 0.3;
+            ctx.fillStyle = '#050510'; 
+            ctx.beginPath();
+            ctx.moveTo(-width/2 + 4, cabinStartY);
+            ctx.lineTo(width/2 - 4, cabinStartY);
+            ctx.lineTo(width/2 - 1, cabinStartY + height * 0.1);
+            ctx.lineTo(-width/2 + 1, cabinStartY + height * 0.1);
+            ctx.fill();
+            
+            ctx.fillStyle = isGold ? '#DAA520' : '#666666';
+            ctx.fillRect(-width/2 + 2, cabinStartY + height * 0.1, width - 4, cabinH - height * 0.15);
+
+            ctx.fillStyle = trimColor;
+            ctx.fillRect(-width/2 + 6, cabinStartY + height * 0.12, 2, height * 0.12);
+            ctx.fillRect(width/2 - 8, cabinStartY + height * 0.12, 2, height * 0.12);
+            ctx.fillRect(0, cabinStartY + height * 0.2, 1, height * 0.05);
+
+            ctx.fillStyle = '#050510';
+            ctx.fillRect(-width/2 + 4, cabinStartY + cabinH - height * 0.05, width - 8, height * 0.05);
+
+            const bedStartY = cabinStartY + cabinH;
+            ctx.fillStyle = isGold ? '#CD853F' : '#4a4a4a'; 
+            ctx.fillRect(-width/2 + 3, bedStartY, width - 6, height - bedStartY - 2);
+
+            ctx.fillStyle = trimColor;
+            ctx.fillRect(-width/2 + 2, bedStartY, width - 4, height * 0.03);
+            ctx.beginPath(); ctx.moveTo(-width/2 + 4, bedStartY); ctx.lineTo(-width/2 + 6, bedStartY + height * 0.15); ctx.lineTo(-width/2 + 3, bedStartY + height * 0.15); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(width/2 - 4, bedStartY); ctx.lineTo(width/2 - 6, bedStartY + height * 0.15); ctx.lineTo(width/2 - 3, bedStartY + height * 0.15); ctx.fill();
+
+            ctx.fillStyle = isGold ? '#FFF' : '#E8E8E8'; 
+            ctx.fillRect(-width/2 + 2, 0, width * 0.2, height * 0.04);
+            ctx.fillRect(width/2 - 2 - width * 0.2, 0, width * 0.2, height * 0.04);
+            
+            ctx.fillStyle = '#CC0000'; 
+            ctx.fillRect(-width/2 + 2, height - height*0.04, width * 0.15, height * 0.04);
+            ctx.fillRect(width/2 - 2 - width * 0.15, height - height*0.04, width * 0.15, height * 0.04);
+
+            ctx.restore();
+        }
+
+        function drawCone(x, y, size) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.beginPath(); ctx.ellipse(0, size/2, size*0.6, size*0.2, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#FF5722';
+            ctx.beginPath(); ctx.moveTo(0, -size/2); ctx.lineTo(-size/2, size/2); ctx.lineTo(size/2, size/2); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath(); ctx.moveTo(-size/3, 0); ctx.lineTo(size/3, 0); ctx.lineTo(size/2.5, size/4); ctx.lineTo(-size/2.5, size/4); ctx.closePath(); ctx.fill();
+            ctx.restore();
+        }
+
+        function drawFuelDrop(x, y, size) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.fillStyle = '#10B981';
+            ctx.shadowBlur = 15; ctx.shadowColor = '#10B981';
+            const floatY = Math.sin(frameCount * 0.1) * 5; ctx.translate(0, floatY);
+            ctx.beginPath(); ctx.arc(0, size/4, size/3, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(-size/3, size/4); ctx.lineTo(size/3, size/4); ctx.lineTo(0, -size/2); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#6EE7B7'; ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(-size/8, size/8, size/8, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        }
+
+        function drawCompanyLogo(x, y, size) {
+            ctx.save();
+            ctx.translate(x, y);
+            const floatY = Math.sin(frameCount * 0.05) * 8; ctx.translate(0, floatY);
+            ctx.shadowBlur = 20; ctx.shadowColor = '#FFFFFF';
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath(); ctx.arc(0, 0, size * 0.6, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0;
+            if (logoImg.complete && logoImg.naturalWidth !== 0) {
+                const imgSize = size * 1.1;
+                ctx.drawImage(logoImg, -imgSize/2, -imgSize/2, imgSize, imgSize);
+            } else {
+                ctx.fillStyle = '#E3000F'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('ISUZU', 0, 0);
+            }
+            ctx.restore();
+        }
+
+        function drawCoin(x, y, size) {
+            ctx.save();
+            ctx.translate(x, y);
+            const floatY = Math.sin(frameCount * 0.1) * 5; 
+            ctx.translate(0, floatY);
+            
+            const scaleX = Math.cos(frameCount * 0.05);
+            ctx.scale(scaleX, 1);
+
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#FFD700';
+
+            ctx.fillStyle = '#DAA520';
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.25, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#B8860B';
+            ctx.font = `bold ${size * 0.3}px Kanit`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('฿', 0, 1); 
+
+            ctx.restore();
+        }
+
+        // --- Game Logic ---
+
+        function levelUp() {
+            level++;
+            baseSpeed = 5 + (level * 1.2);
+            fuelDrainRate = 5 + (level * 0.6);
+
+            levelDisplay.innerText = level;
+            
+            if(level === 10) {
+                showLevelUpToast(`LEVEL ${level}! <br><span style="font-size:20px; color:#ff4444;">ยินดีต้อนรับสู่นรก!</span>`);
+                hellOverlay.classList.add('active'); 
+            } else {
+                showLevelUpToast(`LEVEL ${level}! <br><span style="font-size:20px; color:#ffffff;">ความเร็วเพิ่มขึ้น!</span>`);
+            }
+            playLevelUpSound();
+        }
+
+        function updateFuel(deltaTime) {
+            currentFuel -= (fuelDrainRate * (deltaTime / 1000));
+            if (currentFuel <= 0) {
+                currentFuel = 0;
+                endGame("น้ำมันหมด! (Out of Fuel)");
+                return;
+            }
+            fuelBar.style.width = `${Math.max(0, currentFuel)}%`;
+            if (currentFuel < 20) {
+                fuelBar.className = "bg-red-500 h-full transition-all duration-200";
+            } else if (currentFuel < 50) {
+                fuelBar.className = "bg-yellow-400 h-full transition-all duration-200";
+            } else {
+                fuelBar.className = "bg-gradient-to-r from-green-500 to-green-300 h-full transition-all duration-200";
+            }
+        }
+
+        function spawnEntities(deltaTime) {
+            speed = baseSpeed + ((distance % 100) / 100); 
+            if (speed > 25) speed = 25; 
+
+            timeSinceLastLogo += deltaTime;
+            let spawnRate = Math.max(18, 60 - Math.floor(speed * 1.5)); 
+            if (currentFuel < 30) spawnRate = 12; 
+
+            if (frameCount % spawnRate === 0) {
+                const lane = Math.floor(Math.random() * LANES);
+                
+                if (timeSinceLastLogo >= LOGO_SPAWN_INTERVAL) {
+                    logos.push({ lane: lane, y: -50, size: player.width * 0.8 });
+                    timeSinceLastLogo = 0;
+                } else {
+                    let rand = Math.random();
+                    if (currentFuel < 40) {
+                        if (rand < 0.6) collectibles.push({ lane: lane, y: -50, size: player.width * 0.7 });
+                        else if (rand < 0.9) obstacles.push({ lane: lane, y: -50, size: player.width * 0.9 });
+                        else coins.push({ lane: lane, y: -50, size: player.width * 0.8 });
+                    } else {
+                        let obsChance = 0.45 + (level * 0.02);
+                        if (rand < (1 - obsChance - 0.15)) collectibles.push({ lane: lane, y: -50, size: player.width * 0.7 });
+                        else if (rand < (1 - 0.15)) obstacles.push({ lane: lane, y: -50, size: player.width * 0.9 });
+                        else coins.push({ lane: lane, y: -50, size: player.width * 0.8 });
+                    }
+                }
+            }
+        }
+
+        function updateEntities(deltaTime) {
+            const movement = speed * (deltaTime / 16.6); 
+            const hitRadius = player.height * 0.35;
+
+            player.targetX = getLaneCenterX(player.lane);
+            const diffX = player.targetX - player.currentX;
+            player.currentX += diffX * 0.2;
+            
+            player.targetRotation = (diffX * 0.005);
+            player.currentRotation += (player.targetRotation - player.currentRotation) * 0.3;
+
+            updateEngineSound(speed);
+            scheduler(); 
+
+            if (isInvincible) {
+                invincibleTimer -= deltaTime;
+                timerDisplay.innerText = (invincibleTimer / 1000).toFixed(1) + "s";
+                if (invincibleTimer <= 0) {
+                    isInvincible = false;
+                    invincibleHud.classList.add('hidden');
+                }
+            }
+
+            // Cones
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.y += movement;
+                if (obs.lane === player.lane && Math.abs(obs.y - player.y) < hitRadius) {
+                    if (isInvincible) {
+                        obstacles.splice(i, 1);
+                        points += 10;
+                        pointsDisplay.innerHTML = `${points} <span class="text-[10px] text-green-200">PTS</span>`;
+                        animatePoints();
+                        playCrashSound(); 
+                        continue;
+                    } else {
+                        endGame("รถชนสิ่งกีดขวาง! (Crashed)");
+                        return;
+                    }
+                }
+                if (obs.y > canvas.height + 100) obstacles.splice(i, 1);
+            }
+
+            // Fuel
+            for (let i = collectibles.length - 1; i >= 0; i--) {
+                let col = collectibles[i];
+                col.y += movement;
+                if (col.lane === player.lane && Math.abs(col.y - player.y) < hitRadius) {
+                    currentFuel = Math.min(MAX_FUEL, currentFuel + 25);
+                    points += 10;
+                    pointsDisplay.innerHTML = `${points} <span class="text-[10px] text-green-200">PTS</span>`;
+                    animatePoints();
+                    playFuelSound();
+                    collectibles.splice(i, 1);
+                    continue;
+                }
+                if (col.y > canvas.height + 100) collectibles.splice(i, 1);
+            }
+
+            // Coins
+            for (let i = coins.length - 1; i >= 0; i--) {
+                let coin = coins[i];
+                coin.y += movement;
+                if (coin.lane === player.lane && Math.abs(coin.y - player.y) < hitRadius) {
+                    points += 50;
+                    pointsDisplay.innerHTML = `${points} <span class="text-[10px] text-green-200">PTS</span>`;
+                    animatePoints();
+                    playCoinSound();
+                    coins.splice(i, 1);
+                    continue;
+                }
+                if (coin.y > canvas.height + 100) coins.splice(i, 1);
+            }
+
+            // Logos
+            for (let i = logos.length - 1; i >= 0; i--) {
+                let logoItem = logos[i];
+                logoItem.y += movement;
+                if (logoItem.lane === player.lane && Math.abs(logoItem.y - player.y) < hitRadius) {
+                    isInvincible = true;
+                    invincibleTimer = INVINCIBLE_DURATION;
+                    invincibleHud.classList.remove('hidden');
+                    currentFuel = MAX_FUEL; 
+                    playPowerupSound();
+                    logos.splice(i, 1);
+                    continue;
+                }
+                if (logoItem.y > canvas.height + 100) logos.splice(i, 1);
+            }
+
+            // Distance & Level calculation
+            if(frameCount % 10 === 0) {
+                distance += 1;
+                distanceDisplay.innerText = distance;
+                
+                if (level < MAX_LEVEL && distance >= level * 100) {
+                    levelUp();
+                }
+            }
+        }
+
+        // --- Core Loops ---
+
+        function gameLoop(timestamp) {
+            if (gameState !== 'PLAYING') return;
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+            frameCount++;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            updateFuel(deltaTime);
+            drawRoad();
+            drawSceneryPass(speed);
+            spawnEntities(deltaTime);
+            updateEntities(deltaTime);
+
+            if (gameState !== 'PLAYING') return;
+
+            obstacles.forEach(obs => drawCone(getLaneCenterX(obs.lane), obs.y, obs.size));
+            collectibles.forEach(col => drawFuelDrop(getLaneCenterX(col.lane), col.y, col.size));
+            logos.forEach(logoItem => drawCompanyLogo(getLaneCenterX(logoItem.lane), logoItem.y, logoItem.size));
+            coins.forEach(c => drawCoin(getLaneCenterX(c.lane), c.y, c.size));
+
+            drawCar(player.currentX, player.y, player.width, player.height, isInvincible, player.currentRotation);
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function menuLoop(timestamp) {
+            if (gameState !== 'MENU') return;
+            frameCount++;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Force Level 1 graphics for bright menu background
+            let tempLevel = level; level = 1;
+            let tempSpeed = speed; speed = 5;
+            
+            drawRoad();
+            drawSceneryPass(speed);
+            
+            level = tempLevel; speed = tempSpeed;
+
+            // Draw Car slightly animated
+            drawCar(getLaneCenterX(1), canvas.height - player.height - 40, player.width, player.height, false, Math.sin(frameCount*0.05)*0.02);
+
+            requestAnimationFrame(menuLoop);
+        }
+
+        // --- Controls ---
+
+        function handleInput(e) {
+            if (gameState !== 'PLAYING') return;
+            // Prevent default except for UI buttons
+            if (e.target.tagName !== 'BUTTON') {
+                e.preventDefault();
+            }
+
+            let clientX;
+            if (e.type === 'touchstart') clientX = e.touches[0].clientX;
+            else if (e.type === 'mousedown') clientX = e.clientX;
+            else return;
+
+            if (clientX < canvas.width / 2) player.lane = Math.max(0, player.lane - 1);
+            else player.lane = Math.min(LANES - 1, player.lane + 1);
+        }
+
+        window.addEventListener('touchstart', handleInput, {passive: false});
+        window.addEventListener('mousedown', handleInput);
+
+        window.addEventListener('keydown', (e) => {
+            if (gameState !== 'PLAYING') return;
+            if (e.key === 'ArrowLeft' || e.key === 'a') player.lane = Math.max(0, player.lane - 1);
+            if (e.key === 'ArrowRight' || e.key === 'd') player.lane = Math.min(LANES - 1, player.lane + 1);
+        });
+
+        // --- State Management ---
+
+        function checkAndStartGame() {
+            const inputElement = document.getElementById('player-name-input');
+            const name = inputElement.value.trim();
+            
+            if (!name) {
+                showToastMsg("⚠️ กรุณากรอกชื่อก่อนเริ่มเกม!");
+                inputElement.focus();
+                return;
+            }
+            
+            playerName = name;
+            inputElement.blur(); 
+            startGame();
+        }
+
+        function startGame() {
+            initAudio(); 
+            nextBeatTime = audioCtx.currentTime + 0.1;
+
+            mainMenu.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            confirmModal.classList.add('hidden');
+            tutorialModal.classList.add('hidden');
+            hud.classList.remove('hidden');
+            invincibleHud.classList.add('hidden');
+            hellOverlay.classList.remove('active');
+
+            gameState = 'PLAYING';
+            distance = 0;
+            points = 0;
+            level = 1;
+            baseSpeed = 5;
+            
+            distanceDisplay.innerText = distance;
+            pointsDisplay.innerHTML = `${points} <span class="text-[10px] text-green-200">PTS</span>`;
+            levelDisplay.innerText = level;
+            
+            currentFuel = MAX_FUEL;
+            fuelDrainRate = 5;
+            fuelBar.style.width = '100%';
+            fuelBar.className = "bg-gradient-to-r from-green-500 to-green-300 h-full transition-all duration-200";
+
+            frameCount = 0;
+            timeSinceLastLogo = 0;
+            isInvincible = false;
+            invincibleTimer = 0;
+            
+            player.lane = 1;
+            player.currentX = getLaneCenterX(1);
+            player.currentRotation = 0;
+            
+            obstacles = [];
+            collectibles = [];
+            logos = [];
+            coins = [];
+
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function endGame(reason) {
+            gameState = 'GAMEOVER';
+            
+            stopEngineSound();
+            playCrashSound();
+            
+            hud.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            
+            finalDistanceDisplay.innerText = distance;
+            finalPointsDisplay.innerText = points;
+            finalLevelDisplay.innerText = level;
+            gameOverReason.innerText = reason; 
+
+            drawFinalCanvasState();
+        }
+
+        function requestRestart() {
+            confirmModal.classList.remove('hidden');
+        }
+
+        function hideConfirmModal() {
+            confirmModal.classList.add('hidden');
+        }
+
+        function restartGame() {
+            startGame();
+        }
+        
+        // Tutorial Functions
+        function showTutorial() {
+            tutorialModal.classList.remove('hidden');
+        }
+        
+        function hideTutorial() {
+            tutorialModal.classList.add('hidden');
+        }
+
+        function drawFinalCanvasState() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Header Banner (Dark Grey to make Red ISUZU pop)
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, canvas.width, 130);
+            
+            // Text Calculation for perfectly centered "ISUZU FUEL CHALLENGE"
+            ctx.font = 'bold 26px Kanit';
+            const textIsuzu = "ISUZU ";
+            const textFuel = "FUEL ";
+            const textChallenge = "CHALLENGE";
+            
+            const w1 = ctx.measureText(textIsuzu).width;
+            const w2 = ctx.measureText(textFuel).width;
+            const w3 = ctx.measureText(textChallenge).width;
+            const totalW = w1 + w2 + w3;
+            
+            let startX = (canvas.width - totalW) / 2;
+            
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#E3000F'; // Red ISUZU
+            ctx.fillText(textIsuzu, startX, 40);
+            
+            ctx.fillStyle = '#10B981'; // Green FUEL
+            ctx.fillText(textFuel, startX + w1, 40);
+            
+            ctx.fillStyle = '#FFFFFF'; // White CHALLENGE
+            ctx.fillText(textChallenge, startX + w1 + w2, 40);
+            
+            ctx.textAlign = 'center';
+            ctx.font = '16px Kanit';
+            ctx.fillText('สถิติประหยัดน้ำมันของฉัน!', canvas.width/2, 70);
+            
+            // Draw Player Name
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 20px Kanit';
+            ctx.fillText('Driver: ' + playerName, canvas.width/2, 105);
+
+            // Draw Results
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 24px Kanit';
+            ctx.fillText('LEVEL ' + level, canvas.width/2, canvas.height/2 - 120);
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 60px Kanit';
+            ctx.fillText(distance + ' KM', canvas.width/2, canvas.height/2 - 50);
+            
+            ctx.fillStyle = '#10B981';
+            ctx.font = 'bold 36px Kanit';
+            ctx.fillText('คะแนน: ' + points, canvas.width/2, canvas.height/2);
+            
+            // Draw Car
+            drawCar(canvas.width/2, canvas.height/2 + 90, player.width * 1.5, player.height * 1.5, isInvincible, 0);
+        }
+
+        // --- Social & Export Features ---
+
+        function saveScoreImage() {
+            const dataURL = canvas.toDataURL("image/png");
+            const link = document.createElement("a");
+            link.download = `ISUZU_Fuel_Challenge_${playerName}_${distance}KM.png`;
+            link.href = dataURL;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function copyReviewAndShare() {
+            const textToCopy = `วันนี้ ${playerName} มาเช็กระยะที่ศูนย์ ISUZU เล่นเกมเอาชีวิตรอดไปถึงเลเวล ${level} ขับได้ระยะทาง ${distance} กม. และเก็บได้ ${points} คะแนน! รถประหยัดน้ำมัน บริการก็ประทับใจ #ISUZUThailand #ISUZUService`;
+            
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    // Update: generic toast message also uses glowing text now without blocking
+                    toast.innerHTML = "<span style='font-size: 20px; color: white; text-shadow: 0 2px 4px black;'>คัดลอกข้อความรีวิวแล้ว!</span>";
+                    toast.className = "show";
+                    setTimeout(function(){ 
+                        toast.className = toast.className.replace("show", ""); 
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+            }
+            
+            document.body.removeChild(textArea);
+        }
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                if(engineGain) engineGain.gain.value = 0;
+            } else {
+                if(gameState === 'PLAYING' && engineGain && soundEnabled) engineGain.gain.value = 0.05;
+            }
+        });
+
+        // Initial setup & start background animation
+        player.currentX = getLaneCenterX(1);
+        requestAnimationFrame(menuLoop);
+    </script>
+</body>
+</html>
